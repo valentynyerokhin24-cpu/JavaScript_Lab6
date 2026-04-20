@@ -1,89 +1,85 @@
-let gameData = null;
-let currentLevel = null;
-let board = [];
-let moves = 0;
-let timerInterval = null;
-let seconds = 0;
+// Дані рівнів з методички (1.2.2) 
+const gameLevels = {
+    'a': { target: 7, matrix: [
+        [1,1,1,1,0], [0,0,1,0,0], [1,0,1,1,0], [0,0,1,1,0], [0,0,1,0,0]
+    ]},
+    'b': { target: 8, matrix: [
+        [1,0,0,0,0], [0,1,1,1,1], [0,0,1,1,0], [0,0,1,0,0], [0,1,0,0,0]
+    ]},
+    'c': { target: 9, matrix: [
+        [1,0,0,0,0], [0,1,0,1,0], [1,0,0,1,0], [0,0,1,1,0], [1,0,0,0,0]
+    ]}
+};
 
-// 1. Завантаження даних (Ajax/Fetch)
-fetch('levels.json')
-    .then(response => response.json())
-    .then(data => {
-        gameData = data.levels;
-        loadLevel(0); // Завантаження першого за замовчуванням
-    });
+let currentBoard = [];
+let steps = 0;
+let activeLevelKey = 'a';
 
-function loadLevel(index) {
-    currentLevel = JSON.parse(JSON.stringify(gameData[index])); // Глибоке копіювання
-    board = currentLevel.matrix;
-    moves = 0;
-    seconds = 0;
+// Доступ до елементів DOM [cite: 68]
+const boardEl = document.getElementById('game-board');
+const stepsEl = document.getElementById('steps-count');
+const targetEl = document.getElementById('target-moves');
+
+function setupGame(levelKey) {
+    activeLevelKey = levelKey;
+    const level = gameLevels[levelKey];
     
-    document.getElementById('target-moves').textContent = currentLevel.target;
-    updateStats();
-    startTimer();
-    renderBoard();
+    // Імітація роботи з JSON 
+    currentBoard = JSON.parse(JSON.stringify(level.matrix));
+    steps = 0;
+    
+    targetEl.textContent = level.target;
+    updateUI();
+    render();
 }
 
-function renderBoard() {
-    const container = document.getElementById('game-board');
-    container.innerHTML = '';
-    // Поле 5х5 згідно відео 
-    container.style.gridTemplateColumns = 'repeat(5, 60px)';
-
-    board.forEach((row, r) => {
+function render() {
+    boardEl.innerHTML = ''; // Очищення контейнера [cite: 78]
+    
+    currentBoard.forEach((row, r) => {
         row.forEach((cell, c) => {
             const div = document.createElement('div');
             div.className = `cell ${cell ? 'is-on' : 'is-off'}`;
-            // Обробка вводу користувача
+            
+            // Обробник події (ввід користувача) 
             div.onclick = () => makeMove(r, c);
-            container.appendChild(div);
+            boardEl.appendChild(div);
         });
     });
 }
 
 function makeMove(r, c) {
+    // Логіка інверсії клітинок
     const toggle = (y, x) => {
-        if (board[y] !== undefined && board[y][x] !== undefined) {
-            board[y][x] = board[y][x] === 1 ? 0 : 1;
+        if (currentBoard[y] && currentBoard[y][x] !== undefined) {
+            currentBoard[y][x] = currentBoard[y][x] === 1 ? 0 : 1;
         }
     };
 
-    // Логіка хреста (без циклічності)
-    toggle(r, c);
-    toggle(r - 1, c);
-    toggle(r + 1, c);
-    toggle(r, c - 1);
-    toggle(r, c + 1);
+    toggle(r, c);       // Центр
+    toggle(r - 1, c);   // Топ
+    toggle(r + 1, c);   // Низ
+    toggle(r, c - 1);   // Ліво
+    toggle(r, c + 1);   // Право
 
-    moves++;
-    updateStats();
-    renderBoard();
+    steps++;
+    updateUI();
+    render();
     checkWin();
 }
 
-function startTimer() {
-    clearInterval(timerInterval);
-    timerInterval = setInterval(() => {
-        seconds++;
-        const mins = Math.floor(seconds / 60);
-        const secs = seconds % 60;
-        document.getElementById('timer').textContent = `${mins}:${secs < 10 ? '0' : ''}${secs}`;
-    }, 1000);
-}
-
-function updateStats() {
-    document.getElementById('current-moves').textContent = moves;
+function updateUI() {
+    stepsEl.textContent = steps; // Оновлення тексту [cite: 77]
 }
 
 function checkWin() {
-    if (board.every(row => row.every(v => v === 0))) {
-        clearInterval(timerInterval);
-        alert(`Перемога! Кроків: ${moves}. Час: ${document.getElementById('timer').textContent}`);
+    const isWin = currentBoard.every(row => row.every(val => val === 0));
+    if (isWin) {
+        setTimeout(() => alert(`Перемога! Кроків: ${steps}`), 100);
     }
 }
 
-document.getElementById('restart-btn').onclick = () => {
-    // Рестарт без запиту до сервера
-    loadLevel(gameData.findIndex(l => l.id === currentLevel.id));
-};
+document.getElementById('reset-btn').onclick = () => setupGame(activeLevelKey);
+
+// Початковий запуск
+setupGame('a');
