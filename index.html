@@ -2,27 +2,27 @@
 <html lang="uk">
 <head>
     <meta charset="UTF-8">
-    <title>Лабораторна 6 - Lights Out</title>
+    <title>Лабораторна робота №6 - Lights Out</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
     <div class="aero-container">
-        <h1>Lights Out (5x5)</h1>
-        <div class="level-controls">
-            <button onclick="loadLevel(0)">Рівень A</button>
-            <button onclick="loadLevel(1)">Рівень B</button>
-            <button onclick="loadLevel(2)">Рівень C</button>
+        <h1>Гра: Lights Out (5x5)</h1>
+        <div class="level-selector">
+            <button onclick="setupGame('a')">Рівень A</button>
+            <button onclick="setupGame('b')">Рівень B</button>
+            <button onclick="setupGame('c')">Рівень C</button>
         </div>
         
         <div id="game-board"></div>
 
         <div class="stats">
-            <p>Ціль: <span id="target-moves">0</span> кр.</p>
-            <p>Зроблено: <span id="current-moves">0</span></p>
-            <p>Час: <span id="timer">0:00</span></p>
-            <button id="restart-btn">Restart</button>
+            <p>Кроків: <span id="steps-count">0</span></p>
+            <p>Ціль: <span id="target-moves">-</span></p>
+            <button id="reset-btn">Скинути рівень</button>
         </div>
     </div>
+
     <script src="script.js"></script>
 </body>
 </html>
