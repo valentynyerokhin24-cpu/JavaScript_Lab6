@@ -1,85 +1,155 @@
-// Дані рівнів з методички (1.2.2) 
-const gameLevels = {
-    'a': { target: 7, matrix: [
-        [1,1,1,1,0], [0,0,1,0,0], [1,0,1,1,0], [0,0,1,1,0], [0,0,1,0,0]
-    ]},
-    'b': { target: 8, matrix: [
-        [1,0,0,0,0], [0,1,1,1,1], [0,0,1,1,0], [0,0,1,0,0], [0,1,0,0,0]
-    ]},
-    'c': { target: 9, matrix: [
-        [1,0,0,0,0], [0,1,0,1,0], [1,0,0,1,0], [0,0,1,1,0], [1,0,0,0,0]
-    ]}
-};
+// Глобальний стан гри
+let currentMatrix = [];
+let initialMatrix = []; 
+let currentLevelId = null;
+let moves = 0;
+let timerInterval = null;
+let secondsElapsed = 0;
 
-let currentBoard = [];
-let steps = 0;
-let activeLevelKey = 'a';
-
-// Доступ до елементів DOM [cite: 68]
-const boardEl = document.getElementById('game-board');
-const stepsEl = document.getElementById('steps-count');
-const targetEl = document.getElementById('target-moves');
-
-function setupGame(levelKey) {
-    activeLevelKey = levelKey;
-    const level = gameLevels[levelKey];
+// Очікуємо повного завантаження структури сторінки (DOM)
+document.addEventListener("DOMContentLoaded", () => {
+    // Прив'язка обробників подій до кнопок керування
+    document.getElementById("btn-new-game").addEventListener("click", loadRandomLevel);
+    document.getElementById("btn-restart").addEventListener("click", restartCurrentLevel);
     
-    // Імітація роботи з JSON 
-    currentBoard = JSON.parse(JSON.stringify(level.matrix));
-    steps = 0;
-    
-    targetEl.textContent = level.target;
-    updateUI();
-    render();
-}
+    // Запуск першої гри при завантаженні сторінки
+    loadRandomLevel();
+});
 
-function render() {
-    boardEl.innerHTML = ''; // Очищення контейнера [cite: 78]
-    
-    currentBoard.forEach((row, r) => {
-        row.forEach((cell, c) => {
-            const div = document.createElement('div');
-            div.className = `cell ${cell ? 'is-on' : 'is-off'}`;
-            
-            // Обробник події (ввід користувача) 
-            div.onclick = () => makeMove(r, c);
-            boardEl.appendChild(div);
-        });
-    });
-}
-
-function makeMove(r, c) {
-    // Логіка інверсії клітинок
-    const toggle = (y, x) => {
-        if (currentBoard[y] && currentBoard[y][x] !== undefined) {
-            currentBoard[y][x] = currentBoard[y][x] === 1 ? 0 : 1;
+// Асинхронне завантаження рівнів з сервера за допомогою Ajax (Fetch API)
+async function loadRandomLevel() {
+    try {
+        const response = await fetch('db.json');
+        if (!response.ok) {
+            throw new Error("Не вдалося завантажити db.json з сервера.");
         }
-    };
+        
+        // Обов'язково з дужками (), щоб викликати метод
+        const data = await response.json(); 
+        const levels = data.levels;
 
-    toggle(r, c);       // Центр
-    toggle(r - 1, c);   // Топ
-    toggle(r + 1, c);   // Низ
-    toggle(r, c - 1);   // Ліво
-    toggle(r, c + 1);   // Право
+        // Вибір випадкового рівня (щоб він не повторював поточний, якщо рівнів кілька)
+        let availableLevels = levels;
+        if (currentLevelId !== null && levels.length > 1) {
+            availableLevels = levels.filter(lvl => lvl.id !== currentLevelId);
+        }
+        
+        const randomLevel = availableLevels[Math.floor(Math.random() * availableLevels.length)];
+        
+        // Оновлення інтерфейсу та фіксація початкового стану рівня
+        currentLevelId = randomLevel.id;
+        document.getElementById("target-count").textContent = randomLevel.target;
+        
+        // Глибоке копіювання (клонування) матриці для збереження оригіналу
+        initialMatrix = JSON.parse(JSON.stringify(randomLevel.matrix));
+        
+        initGame(initialMatrix);
 
-    steps++;
-    updateUI();
-    render();
-    checkWin();
-}
-
-function updateUI() {
-    stepsEl.textContent = steps; // Оновлення тексту [cite: 77]
-}
-
-function checkWin() {
-    const isWin = currentBoard.every(row => row.every(val => val === 0));
-    if (isWin) {
-        setTimeout(() => alert(`Перемога! Кроків: ${steps}`), 100);
+    } catch (error) {
+        console.error("Помилка Ajax запиту:", error);
+        alert("Помилка: Не вдалося отримати дані з файлу db.json через Ajax.");
     }
 }
 
-document.getElementById('reset-btn').onclick = () => setupGame(activeLevelKey);
+// Ініціалізація параметрів гри
+function initGame(matrix) {
+    currentMatrix = JSON.parse(JSON.stringify(matrix));
+    moves = 0;
+    document.getElementById("moves-count").textContent = moves;
+    
+    resetTimer();
+    startTimer();
+    renderBoard();
+}
 
-// Початковий запуск
-setupGame('a');
+// Перезапуск поточного рівня без повторного Ajax-запиту
+function restartCurrentLevel() {
+    if (initialMatrix.length > 0) {
+        initGame(initialMatrix);
+    }
+}
+
+// Динамічна генерація ігрового поля в DOM
+function renderBoard() {
+    const board = document.getElementById("game-board");
+    board.innerHTML = ""; // Очищення поля перед оновленням
+
+    for (let r = 0; r < 5; r++) {
+        for (let c = 0; c < 5; c++) {
+            const cell = document.createElement("div");
+            cell.classList.add("cell");
+            
+            // Встановлення класу підсвічування відповідно до значення в матриці (1 чи 0)
+            if (currentMatrix[r][c] === 1) {
+                cell.classList.add("is-on");
+            } else {
+                cell.classList.add("is-off");
+            }
+            
+            // Збереження координат у дата-атрибутах клітинки
+            cell.dataset.row = r;
+            cell.dataset.col = c;
+            
+            // Додавання слухача події кліку
+            cell.addEventListener("click", handleCellClick);
+            
+            board.appendChild(cell);
+        }
+    }
+}
+
+// Обробка ходу користувача
+function handleCellClick(event) {
+    const r = parseInt(event.currentTarget.dataset.row);
+    const c = parseInt(event.currentTarget.dataset.col);
+    
+    // Перемикання станів обраної клітинки та її сусідів (хрестом)
+    toggleCell(r, c);       // Центр
+    toggleCell(r - 1, c);   // Верх
+    toggleCell(r + 1, c);   // Ниж
+    toggleCell(r, c - 1);   // Ліворуч
+    toggleCell(r, c + 1);   // Праворуч
+
+    // Збільшення лічильника ходів
+    moves++;
+    document.getElementById("moves-count").textContent = moves;
+    
+    // Оновлення відображення поля
+    renderBoard();
+
+    // Перевірка умови перемоги (всі елементи матриці мають стати 0)
+    if (checkWinCondition()) {
+        clearInterval(timerInterval);
+        setTimeout(() => {
+            alert(`Перемога! Ви вимкнули все світло за ${moves} ходів!`);
+        }, 50);
+    }
+}
+
+// Інверсія значення клітинки (з перевіркою меж матриці 5х5)
+function toggleCell(r, c) {
+    if (r >= 0 && r < 5 && c >= 0 && c < 5) {
+        currentMatrix[r][c] = currentMatrix[r][c] === 1 ? 0 : 1;
+    }
+}
+
+// Перевірка, чи гра завершена
+function checkWinCondition() {
+    return currentMatrix.every(row => row.every(val => val === 0));
+}
+
+// --- Функції керування таймером ---
+function startTimer() {
+    timerInterval = setInterval(() => {
+        secondsElapsed++;
+        const mins = Math.floor(secondsElapsed / 60);
+        const secs = secondsElapsed % 60;
+        document.getElementById("timer-count").textContent = `${mins}:${secs < 10 ? '0' : ''}${secs}`;
+    }, 1000);
+}
+
+function resetTimer() {
+    if (timerInterval) clearInterval(timerInterval);
+    secondsElapsed = 0;
+    document.getElementById("timer-count").textContent = "0:00";
+}
